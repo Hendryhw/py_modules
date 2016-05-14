@@ -6,15 +6,13 @@ reading_encoding = "UTF-8"
 def get_directory_full_list(path):
    print("Start to parse directories : " + path)
    full_directories = []
-   directory_numbers = 0
    for dirpath, dirnames, filenames in os.walk(path):
       for dir in dirnames:
          full_path_dir = os.path.join(dirpath, dir)
          full_directories.append(full_path_dir)
-         directory_numbers += 1
 
    print("--------------- end")
-   print("Total directory # : " + str(directory_numbers))
+   print("Total directory # :", len(full_directories))
    return full_directories
 
 def remove_not_leaf(origin_list, root):
@@ -28,13 +26,11 @@ def remove_not_leaf(origin_list, root):
 def get_file_full_list(path):
    print("Start to parse files : " + path)
    full_files = []
-   file_numbers = 0
    for dirpath, dirnames, filenames in os.walk(path, followlinks=True):
       for file in filenames:
          full_files.append(os.path.join(dirpath, file))
-         file_numbers += 1
    print("--------------- end")
-   print("Total file # : " + str(file_numbers))
+   print("Total file # :", len(full_files))
    return full_files
 
 def read_file(path):
