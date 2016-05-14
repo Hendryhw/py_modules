@@ -37,7 +37,6 @@ def read_file(path):
    file_content = ""
    with open(path, 'r', encoding = reading_encoding) as file:
       file_content = file_content + file.read()
-   file.close()
    return file_content
 
 class file_handles_test(unittest.TestCase):
