@@ -1,1 +1,2 @@
-__pycahce__/
+*.py[cod]
+__pycache__/
