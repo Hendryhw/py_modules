@@ -1,115 +1,86 @@
-# Please install modules : chardet, requests, jieba, hanziconv
-
-import unittest
-import requests
-import jieba
-import jieba.posseg as pseg
+# Testing Environment: Python 2.6, 2.7, 3.4, and 3.5.
+# ckip_postag requires requests module.
+# jieba_postag and jieba_segment require jieba module and optionally hanziconv.
+from __future__ import print_function
 import re
-import sys
-from hanziconv import HanziConv
+import unicodedata
 
-output_encoding = sys.stdin.encoding
+try: # Python 2.
+    unicode # NameError is raised because Python 3 does not have this class.
+    str_bytes_type = str
+except NameError: # Python 3.
+    str_bytes_type = bytes
 
-def ckip_postag(str):
-   ckip_remote_url = "http://140.116.245.151/ckip.php"
-   corpus = str
-   post_data = {"text" : corpus}
-   #print("Corpus encoding : " + chardet.detect(corpus))
-   response = requests.post(ckip_remote_url, post_data)
-   # Decoding = utf-8, python default encode is ASCII
-   pos_result = response.content.decode("utf-8")
-   parse_chinese_pattern = "([^\u3000^\x00-\x2F\x3A-\x7F0-9a-zA-Z]*)\((.*?)\)"
-   prog = re.compile(parse_chinese_pattern)
-   tag_result = prog.findall(pos_result)
-   return tag_result
-      
-def jieba_postag(str):
-   corpus = str
-   corpus = chinese_convert(corpus, 0)
-   words = pseg.cut(corpus)
-   # Tansfer back to tradition chinese
-   words = [ (chinese_convert(word, 1), tag) for word, tag in words]
-   return words
-   
-def jieba_segment(str, cut_all_mode):
-   corpus = str
-   corpus = corpus.encode("utf-8", "replace").decode("utf-8")
-   corpus = chinese_convert(corpus, 0)
-   if cut_all_mode == True:
-      seg_list = jieba.cut(corpus, cut_all=True)
-      # Tansfer back to tradition chinese
-      seg_list = [ chinese_convert(word, 1) for word in seg_list]
-      return seg_list
-   else:
-      seg_list = jieba.cut(corpus, cut_all=False)
-      # Tansfer back to tradition chinese
-      seg_list = [ chinese_convert(word, 1) for word in seg_list]
-      return seg_list
+def ckip_postag(str, encoding_list=("UTF8", "BIG5"), form=""):
+    import requests
+    str, encoding = try_decode(str, encoding_list)
+    ckip_remote_url = "http://140.116.245.151/ckip.php"
+    post_data = {"text": str}
+    response = requests.post(ckip_remote_url, post_data)
+    pos_result = response.content.decode("UTF8")
+    tag_result = re.findall(u"([^\u3000]+)\((.*?)\)", pos_result)
+    return process_result(tag_result, encoding, form)
+
+def jieba_postag(str, encoding_list=("UTF8", "BIG5"), form=""):
+    import jieba.posseg as pseg
+    str, encoding = try_decode(str, encoding_list)
+    # if type(str) is bytes: str = str.decode("UTF-8")
+    # Convert into simplified Chinese.
+    str = chinese_convert(str, 0)
+    words = pseg.cut(str)
+    # Convert back to traditional Chinese.
+    words = [(chinese_convert(word, 1), tag) for word, tag in words]
+    return process_result(words, encoding, form)
+
+def jieba_segment(str, cut_all_mode, encoding_list=("UTF8", "BIG5"), form=""):
+    import jieba
+    str, encoding = try_decode(str, encoding_list)
+    str = chinese_convert(str, 0)
+    seg_list = jieba.cut(str, cut_all=cut_all_mode)
+    seg_list = [chinese_convert(word, 1) for word in seg_list]
+    return process_result(seg_list, encoding, form)
 
 def chinese_convert(str, mode):
-   uni_str = str.encode("utf-8", "replace")
-   if mode == 1:
-      #convert to traditional Chinese
-      uni_str = HanziConv.toTraditional(uni_str)
-   else:
-      #convert to simple Chinese
-      uni_str = HanziConv.toSimplified(uni_str)
-   return uni_str
+    try:
+        from hanziconv import HanziConv
+        return (HanziConv.toSimplified, HanziConv.toTraditional)[mode](str)
+    except (ImportError, ValueError): pass
+    return str
 
-def print_chinese_str(str):
-   result_content = str.encode(output_encoding, 'replace').decode(output_encoding)
-   print(result_content)
-   
-def nf_to_wf(strs, types):
-   nft = [
-      "(", ")", "[", "]", "{", "}", ".", ",", ";", ":",
-      "-", "?", "!", "@", "#", "$", "%", "&", "|", "\\",
-      "/", "+", "=", "*", "~", "`", "'", "\"", "<", ">",
-      "^", "_",
-      "0", "1", "2", "3", "4", "5", "6", "7", "8", "9",
-      "a", "b", "c", "d", "e", "f", "g", "h", "i", "j",
-      "k", "l", "m", "n", "o", "p", "q", "r", "s", "t",
-      "u", "v", "w", "x", "y", "z",
-      "A", "B", "C", "D", "E", "F", "G", "H", "I", "J",
-      "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T",
-      "U", "V", "W", "X", "Y", "Z",
-      " "
-   ]
-   
-   wft = [
-      "（", "）", "〔", "〕", "｛", "｝", "﹒", "，", "；", "：",
-      "－", "？", "！", "＠", "＃", "＄", "％", "＆", "｜", "＼",
-      "／", "＋", "＝", "＊", "～", "、", "、", "＂", "＜", "＞",
-      "︿", "＿",
-      "０", "１", "２", "３", "４", "５", "６", "７", "８", "９",
-      "ａ", "ｂ", "ｃ", "ｄ", "ｅ", "ｆ", "ｇ", "ｈ", "ｉ", "ｊ",
-      "ｋ", "ｌ", "ｍ", "ｎ", "ｏ", "ｐ", "ｑ", "ｒ", "ｓ", "ｔ",
-      "ｕ", "ｖ", "ｗ", "ｘ", "ｙ", "ｚ",
-      "Ａ", "Ｂ", "Ｃ", "Ｄ", "Ｅ", "Ｆ", "Ｇ", "Ｈ", "Ｉ", "Ｊ",
-      "Ｋ", "Ｌ", "Ｍ", "Ｎ", "Ｏ", "Ｐ", "Ｑ", "Ｒ", "Ｓ", "Ｔ",
-      "Ｕ", "Ｖ", "Ｗ", "Ｘ", "Ｙ", "Ｚ",
-      "　"
-   ]
-   
-   transfer_list = []
-   
-   for i in range(0, len(nft)-1):
-      transfer_list.append([nft[i], wft[i]])
-      
-   if types == 1: # to full type
-      for search, replace in transfer_list:
-         strs = strs.replace(search, replace)
-   else: # to half type
-      for replace, search in transfer_list:
-         strs = strs.replace(search, replace)
-   
-   return strs
+def process_result(result, encoding, form):
+    if encoding != "" or form != "":
+        if hasattr(result[0], "encode"):
+            apply = lambda r, f: [f(item) for item in r]
+        else:
+            apply = lambda r, f: [(f(term), tag) for term, tag in r]
+        if form != "": result = apply(result, lambda t: unicodedata.normalize(form, t))
+        if encoding != "": result = apply(result, lambda t: t.encode(encoding))
+    return result
 
-class nlp_module_test(unittest.TestCase):
-   def test_ckip_postag(self):
-      result_list = ckip_postag("今天天氣真好")
-      for term, pos in result_list:
-         print(term + "(" + pos + ")")
+def try_decode(str, encoding_list):
+    encoding = ""
+    if type(str) is str_bytes_type:
+        for e in encoding_list:
+            try: str = str.decode(e)
+            except UnicodeDecodeError: continue
+            encoding = e
+            break
+        if encoding == "": raise UnicodeDecodeError("All codecs failed to decode input.")
+    return (str.encode("UTF8"), encoding)
 
 if __name__ == "__main__":
-   unittest.main()
+    import sys
+    data = u"WMMKS \u5be6\u9a57\u5ba4\uff0c\u81ea\u7136\u8a9e\u8a00\u8655\u7406\u6a21\u7d44\u3002"
+    if not type(data) is str: data = data.encode("BIG5")
+    ckip_tag_result = ckip_postag(data)
+    jieba_tag_result = jieba_postag(data)
+    jieba_segment_result = jieba_segment(data, False)
+    print("Input:", data)
+    print("CKIP POS Result:")
+    for term, tag in ckip_tag_result:
+        print("Term:", term, "Tag:", tag)
+    print("Jieba POS Result:")
+    for term, tag in jieba_tag_result:
+        print("Term:", term, "Tag:", tag)
+    print("Jieba Segment Result:")
+    print(" ".join(jieba_segment_result))
