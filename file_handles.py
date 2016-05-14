@@ -17,16 +17,13 @@ def get_directory_full_list(path):
    print("Total directory # : " + str(directory_numbers))
    return full_directories
 
-def isLeafDir(full_path_dir):
-   for dirpath, dirnames, filenames in os.walk(full_path_dir):
-      '''
-      if len(full_path_dir) < 50:
-         print(full_path_dir)
-      '''
-      if (not dirnames):
-         return True
-      else:
-         return False
+def remove_not_leaf(origin_list, root):
+   for dirpath, dirnames, filenames in os.walk(root):
+      if (not filenames):
+         try:
+            origin_list.remove(dirpath)
+         except ValueError:
+            continue
 
 def get_file_full_list(path):
    print("Start to parse files : " + path)
@@ -49,12 +46,9 @@ def read_file(path):
    
 class file_handles_test(unittest.TestCase):
    def test_get_directory_full_list(self):
-      full_dir = get_directory_full_list(r"..\ruten")
-      print(len(full_dir))
-      for dir in full_dir:
-         if isLeafDir(dir) == False:
-            full_dir.remove(dir)
-      print(len(full_dir))
+      root = r"..\ruten"
+      full_dir = get_directory_full_list(root)
+      remove_not_leaf(full_dir, root)
 
 if __name__ == "__main__":
    unittest.main()
